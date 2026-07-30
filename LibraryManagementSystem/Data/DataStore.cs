@@ -1,4 +1,5 @@
 ﻿using LibraryManagementSystem.Models;
+using MySqlConnector;
 using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
@@ -6,9 +7,9 @@ using System.Data.SqlClient;
 namespace LibraryManagementSystem.Data
 {
     /// <summary>
-    /// SQL Server data access layer (ADO.NET), using Microsoft.Data.SqlClient.
-    /// This replaces the earlier JSON-file version: every method here talks
-    /// directly to the SarasaviLibraryDB database (see Database/CreateDatabase.sql).
+    /// MySQL data access layer (ADO.NET), using MySqlConnector.
+    /// Every method here talks directly to the SarasaviLibraryDB database
+    /// (see Database/CreateDatabase_MySQL.sql), running on MySQL via WAMP.
     ///
     /// LibraryService (the business-logic layer) only calls these public
     /// methods - it never writes raw SQL itself - so this class is the single
@@ -22,9 +23,9 @@ namespace LibraryManagementSystem.Data
         private static DataStore? _instance;
         public static DataStore Instance => _instance ??= new DataStore();
 
-        private SqlConnection OpenConnection()
+        private MySqlConnection OpenConnection()
         {
-            var conn = new SqlConnection(DbConfig.ConnectionString);
+            var conn = new MySqlConnection(DbConfig.ConnectionString);
             conn.Open();
             return conn;
         }
@@ -39,7 +40,7 @@ namespace LibraryManagementSystem.Data
                                 "FROM Users ORDER BY UserNumber";
             var result = new List<LibraryUser>();
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
                 result.Add(ReadUser(reader));
@@ -51,7 +52,7 @@ namespace LibraryManagementSystem.Data
             const string sql = "SELECT UserNumber, Name, Sex, NationalIdentityCardNumber, Address, UserType " +
                                 "FROM Users WHERE UserNumber = @UserNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", userNumber);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? ReadUser(reader) : null;
@@ -61,9 +62,9 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "SELECT COUNT(*) FROM Users WHERE NationalIdentityCardNumber = @Nic";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Nic", nic);
-            return (int)cmd.ExecuteScalar() > 0;
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         }
 
         /// <summary>All existing UserNumbers, used by LibraryService to work out the next one.</summary>
@@ -78,7 +79,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"INSERT INTO Users (UserNumber, Name, Sex, NationalIdentityCardNumber, Address, UserType)
                                   VALUES (@UserNumber, @Name, @Sex, @Nic, @Address, @UserType)";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", user.UserNumber);
             cmd.Parameters.AddWithValue("@Name", user.Name);
             cmd.Parameters.AddWithValue("@Sex", user.Sex.ToString());
@@ -88,7 +89,7 @@ namespace LibraryManagementSystem.Data
             cmd.ExecuteNonQuery();
         }
 
-        private static LibraryUser ReadUser(SqlDataReader reader) => new()
+        private static LibraryUser ReadUser(MySqlDataReader reader) => new()
         {
             UserNumber = reader.GetString(0),
             Name = reader.GetString(1),
@@ -107,7 +108,7 @@ namespace LibraryManagementSystem.Data
             const string sql = "SELECT BookNumber, Classification, Title, Author, Publisher FROM Books ORDER BY BookNumber";
             var result = new List<Book>();
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
                 result.Add(ReadBook(reader));
@@ -118,7 +119,7 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "SELECT BookNumber, Classification, Title, Author, Publisher FROM Books WHERE BookNumber = @BookNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BookNumber", bookNumber);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? ReadBook(reader) : null;
@@ -129,7 +130,7 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "SELECT BookNumber FROM Books WHERE UPPER(Classification) = @Classification";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Classification", char.ToUpper(classification).ToString());
             var result = new List<string>();
             using var reader = cmd.ExecuteReader();
@@ -146,7 +147,7 @@ namespace LibraryManagementSystem.Data
                                   ORDER BY BookNumber";
             var result = new List<Book>();
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Query", $"%{query}%");
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -159,7 +160,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"INSERT INTO Books (BookNumber, Classification, Title, Author, Publisher)
                                   VALUES (@BookNumber, @Classification, @Title, @Author, @Publisher)";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BookNumber", book.BookNumber);
             cmd.Parameters.AddWithValue("@Classification", book.Classification.ToString());
             cmd.Parameters.AddWithValue("@Title", book.Title);
@@ -168,7 +169,7 @@ namespace LibraryManagementSystem.Data
             cmd.ExecuteNonQuery();
         }
 
-        private static Book ReadBook(SqlDataReader reader) => new()
+        private static Book ReadBook(MySqlDataReader reader) => new()
         {
             BookNumber = reader.GetString(0),
             Classification = reader.GetString(1)[0],
@@ -186,7 +187,7 @@ namespace LibraryManagementSystem.Data
             const string sql = "SELECT CopyNumber, BookNumber, CopyType, Status FROM BookCopies " +
                                 "WHERE BookNumber = @BookNumber ORDER BY CopyNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BookNumber", bookNumber);
             var result = new List<BookCopy>();
             using var reader = cmd.ExecuteReader();
@@ -199,7 +200,7 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "SELECT CopyNumber, BookNumber, CopyType, Status FROM BookCopies WHERE CopyNumber = @CopyNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@CopyNumber", copyNumber);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? ReadCopy(reader) : null;
@@ -211,7 +212,7 @@ namespace LibraryManagementSystem.Data
                                   WHERE CopyType = 'Borrowable' AND Status = 'Available'
                                   ORDER BY CopyNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             var result = new List<BookCopy>();
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -223,9 +224,9 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "SELECT COUNT(*) FROM BookCopies WHERE BookNumber = @BookNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BookNumber", bookNumber);
-            return (int)cmd.ExecuteScalar();
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
         public void InsertCopy(BookCopy copy)
@@ -233,7 +234,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"INSERT INTO BookCopies (CopyNumber, BookNumber, CopyType, Status)
                                   VALUES (@CopyNumber, @BookNumber, @CopyType, @Status)";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@CopyNumber", copy.CopyNumber);
             cmd.Parameters.AddWithValue("@BookNumber", copy.BookNumber);
             cmd.Parameters.AddWithValue("@CopyType", copy.Type.ToString());
@@ -245,13 +246,13 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "UPDATE BookCopies SET Status = @Status WHERE CopyNumber = @CopyNumber";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@Status", status.ToString());
             cmd.Parameters.AddWithValue("@CopyNumber", copyNumber);
             cmd.ExecuteNonQuery();
         }
 
-        private static BookCopy ReadCopy(SqlDataReader reader) => new()
+        private static BookCopy ReadCopy(MySqlDataReader reader) => new()
         {
             CopyNumber = reader.GetString(0),
             BookNumber = reader.GetString(1),
@@ -269,7 +270,7 @@ namespace LibraryManagementSystem.Data
                                   FROM Loans WHERE UserNumber = @UserNumber AND Status = 'Active'
                                   ORDER BY DueDate";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", userNumber);
             var result = new List<Loan>();
             using var reader = cmd.ExecuteReader();
@@ -283,7 +284,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"SELECT LoanId, CopyNumber, UserNumber, LoanDate, DueDate, ReturnDate, Status
                                   FROM Loans WHERE Status = 'Active' ORDER BY DueDate";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             var result = new List<Loan>();
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -296,19 +297,19 @@ namespace LibraryManagementSystem.Data
             const string sql = @"SELECT COUNT(*) FROM Loans
                                   WHERE UserNumber = @UserNumber AND Status = 'Active' AND DueDate < @Today";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", userNumber);
             cmd.Parameters.AddWithValue("@Today", DateTime.Now.Date);
-            return (int)cmd.ExecuteScalar() > 0;
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         }
 
         public int GetActiveLoanCountForUser(string userNumber)
         {
             const string sql = "SELECT COUNT(*) FROM Loans WHERE UserNumber = @UserNumber AND Status = 'Active'";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", userNumber);
-            return (int)cmd.ExecuteScalar();
+            return Convert.ToInt32(cmd.ExecuteScalar());
         }
 
         public Loan? GetActiveLoanForCopy(string copyNumber)
@@ -316,7 +317,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"SELECT LoanId, CopyNumber, UserNumber, LoanDate, DueDate, ReturnDate, Status
                                   FROM Loans WHERE CopyNumber = @CopyNumber AND Status <> 'Returned'";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@CopyNumber", copyNumber);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? ReadLoan(reader) : null;
@@ -333,7 +334,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"INSERT INTO Loans (LoanId, CopyNumber, UserNumber, LoanDate, DueDate, ReturnDate, Status)
                                   VALUES (@LoanId, @CopyNumber, @UserNumber, @LoanDate, @DueDate, @ReturnDate, @Status)";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@LoanId", loan.LoanId);
             cmd.Parameters.AddWithValue("@CopyNumber", loan.CopyNumber);
             cmd.Parameters.AddWithValue("@UserNumber", loan.UserNumber);
@@ -348,13 +349,13 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = @"UPDATE Loans SET ReturnDate = @ReturnDate, Status = 'Returned' WHERE LoanId = @LoanId";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@ReturnDate", returnDate);
             cmd.Parameters.AddWithValue("@LoanId", loanId);
             cmd.ExecuteNonQuery();
         }
 
-        private static Loan ReadLoan(SqlDataReader reader) => new()
+        private static Loan ReadLoan(MySqlDataReader reader) => new()
         {
             LoanId = reader.GetString(0),
             CopyNumber = reader.GetString(1),
@@ -374,7 +375,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"SELECT ReservationId, BookNumber, UserNumber, ReservationDate, Status, HeldCopyNumber
                                   FROM Reservations WHERE Status = 'Active' ORDER BY ReservationDate";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             var result = new List<Reservation>();
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
@@ -384,12 +385,12 @@ namespace LibraryManagementSystem.Data
 
         public Reservation? GetOldestActiveReservationForBook(string bookNumber)
         {
-            const string sql = @"SELECT TOP 1 ReservationId, BookNumber, UserNumber, ReservationDate, Status, HeldCopyNumber
+            const string sql = @"SELECT ReservationId, BookNumber, UserNumber, ReservationDate, Status, HeldCopyNumber
                                   FROM Reservations
                                   WHERE BookNumber = @BookNumber AND Status = 'Active'
-                                  ORDER BY ReservationDate";
+                                  ORDER BY ReservationDate LIMIT 1";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@BookNumber", bookNumber);
             using var reader = cmd.ExecuteReader();
             return reader.Read() ? ReadReservation(reader) : null;
@@ -400,10 +401,10 @@ namespace LibraryManagementSystem.Data
             const string sql = @"SELECT COUNT(*) FROM Reservations
                                   WHERE UserNumber = @UserNumber AND BookNumber = @BookNumber AND Status = 'Active'";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@UserNumber", userNumber);
             cmd.Parameters.AddWithValue("@BookNumber", bookNumber);
-            return (int)cmd.ExecuteScalar() > 0;
+            return Convert.ToInt32(cmd.ExecuteScalar()) > 0;
         }
 
         public List<string> GetAllReservationIds()
@@ -417,7 +418,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"INSERT INTO Reservations (ReservationId, BookNumber, UserNumber, ReservationDate, Status, HeldCopyNumber)
                                   VALUES (@ReservationId, @BookNumber, @UserNumber, @ReservationDate, @Status, @HeldCopyNumber)";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@ReservationId", reservation.ReservationId);
             cmd.Parameters.AddWithValue("@BookNumber", reservation.BookNumber);
             cmd.Parameters.AddWithValue("@UserNumber", reservation.UserNumber);
@@ -432,7 +433,7 @@ namespace LibraryManagementSystem.Data
             const string sql = @"UPDATE Reservations SET Status = 'Fulfilled', HeldCopyNumber = @HeldCopyNumber
                                   WHERE ReservationId = @ReservationId";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@HeldCopyNumber", heldCopyNumber);
             cmd.Parameters.AddWithValue("@ReservationId", reservationId);
             cmd.ExecuteNonQuery();
@@ -442,12 +443,12 @@ namespace LibraryManagementSystem.Data
         {
             const string sql = "UPDATE Reservations SET Status = 'Cancelled' WHERE ReservationId = @ReservationId";
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             cmd.Parameters.AddWithValue("@ReservationId", reservationId);
             cmd.ExecuteNonQuery();
         }
 
-        private static Reservation ReadReservation(SqlDataReader reader) => new()
+        private static Reservation ReadReservation(MySqlDataReader reader) => new()
         {
             ReservationId = reader.GetString(0),
             BookNumber = reader.GetString(1),
@@ -465,7 +466,7 @@ namespace LibraryManagementSystem.Data
         {
             var result = new List<string>();
             using var conn = OpenConnection();
-            using var cmd = new SqlCommand(sql, conn);
+            using var cmd = new MySqlCommand(sql, conn);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
                 result.Add(reader.GetString(0));

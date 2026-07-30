@@ -6,6 +6,6 @@
     public static class DbConfig
     {
         public static string ConnectionString { get; set; } =
-            @"Server=.\SQLEXPRESS;Database=LibraryManagementDB;Trusted_Connection=True;TrustServerCertificate=True;";
+            @"Server=localhost;Port=3306;Database=SarasaviLibraryDB;Uid=root;Pwd=;";
     }
 }
